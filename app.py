@@ -11,31 +11,35 @@ import io
 st.set_page_config(page_title="Neural Style Transfer", layout="centered")
 
 # Title
-st.title("🎨 Neural Style Transfer with VGG19")
+st.title("🎨 ArtBlend - Neural Style Transfer")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Image loader
-def load_image(image, max_size=400, shape=None):
-    image = Image.open(image).convert('RGB')
+def load_image(img_path, shape=None, max_size=250):
+    image = Image.open(img_path).convert('RGB')
 
     if max(image.size) > max_size:
         size = max_size
     else:
-        size = max(image.size)
+        size = image.size[1]  # Height
 
     if shape:
-        size = shape
-
-    in_transform = transforms.Compose([
-        transforms.Resize((size, size)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406),
-                             (0.229, 0.224, 0.225))
-    ])
+        in_transform = transforms.Compose([
+            transforms.Resize(shape),   # shape must be (H, W)
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406),
+                                 (0.229, 0.224, 0.225))])
+    else:
+        in_transform = transforms.Compose([
+            transforms.Resize(size),  # size must be int
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406),
+                                 (0.229, 0.224, 0.225))])
 
     image = in_transform(image).unsqueeze(0)
-    return image.to(device)
+    return image.to(device, torch.float)
+
 
 # Show image
 def im_convert(tensor):
@@ -89,7 +93,9 @@ style_image = st.file_uploader("Upload Style Image", type=['png', 'jpg', 'jpeg']
 
 if content_image and style_image:
     content = load_image(content_image)
-    style = load_image(style_image, shape=content.shape[-2:])
+    content_shape = tuple(map(int, content.shape[-2:]))  # (H, W)
+    style = load_image(style_image, shape=content_shape)
+
 
     st.subheader("🖼️ Content Image")
     st.image(im_convert(content), use_column_width=True)
@@ -116,7 +122,7 @@ if content_image and style_image:
             style_grams = {layer: gram_matrix(style_features[layer]) for layer in style_features}
 
             optimizer = optim.Adam([target], lr=0.003)
-            steps = 300
+            steps = 100
 
             for step in range(1, steps + 1):
                 target_features = get_features(target, vgg)
